@@ -1,0 +1,9 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -tags=dev -o ./tmp/ec-tmpl ./cmd/ec-tmpl"
+bin = "tmp/ec-tmpl"
+include_ext = ["go", "toml"]
+exclude_dir = ["tmp", ".git", ".bin"]
+

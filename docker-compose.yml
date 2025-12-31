@@ -1,0 +1,26 @@
+services:
+  api:
+    build:
+      context: .
+      target: development
+    ports:
+      - "${EC_TMPL_HOST_PORT:-8000}:8000"
+    environment:
+      EC_TMPL_APP_NAME: "${EC_TMPL_APP_NAME:-ec-tmpl}"
+      EC_TMPL_BIND_IP: "0.0.0.0"
+      EC_TMPL_BIND_PORT: "8000"
+      EC_TMPL_USE_MOCK_GREETING: "${EC_TMPL_USE_MOCK_GREETING:-false}"
+    volumes:
+      - .:/app
+
+  api-prod:
+    build:
+      context: .
+      target: production
+    ports:
+      - "${EC_TMPL_HOST_PORT:-8000}:8000"
+    environment:
+      EC_TMPL_APP_NAME: "${EC_TMPL_APP_NAME:-ec-tmpl}"
+      EC_TMPL_BIND_IP: "0.0.0.0"
+      EC_TMPL_BIND_PORT: "8000"
+
