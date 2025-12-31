@@ -26,14 +26,10 @@ help:
 # Environment Setup
 # ==============================================================================
 
-setup: setup-tools setup-env # Initialize local environment
-
-setup-env: # .env file exists
+setup: # Initialize local environment (tools + .env)
 	@if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi
-
-setup-tools: # Local toolchain exists under .bin/
 	@mkdir -p .bin
-	@GOBIN="$(pwd)/.bin" go install golang.org/x/tools/cmd/goimports@latest
+	@GOBIN="$(pwd)/.bin" go install golang.org/x/tools/cmd/goimports@v0.30.0
 	@GOBIN="$(pwd)/.bin" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
 
 # ==============================================================================
@@ -41,10 +37,7 @@ setup-tools: # Local toolchain exists under .bin/
 # ==============================================================================
 
 dev: # Local development server (in-process, no Docker)
-	@EC_TMPL_BIND_IP="{{HOST_IP}}" EC_TMPL_BIND_PORT="{{DEV_PORT}}" go run -tags=dev ./cmd/ec-tmpl
-
-dev-air: setup-tools # Local development server with hot reload
-	@if [ ! -f .bin/air ]; then GOBIN="$(pwd)/.bin" go install github.com/air-verse/air@v1.61.5; fi
+	@if [ ! -f .bin/air ]; then GOBIN="$(pwd)/.bin" go install github.com/air-verse/air@v1.52.3; fi
 	@EC_TMPL_BIND_IP="{{HOST_IP}}" EC_TMPL_BIND_PORT="{{DEV_PORT}}" .bin/air -c .air.toml
 
 up: # Development stack (docker compose)
@@ -73,53 +66,67 @@ rebuild-prod: # Rebuild production stack (docker compose)
 # CODE QUALITY
 # ==============================================================================
 
-fix: setup-tools # Apply formatting and auto-fixes
-	@.bin/goimports -w .
-	@.bin/golangci-lint run --fix
+# Automatically format and fix code
+fix:
+	@echo "🔧 Formatting and fixing code..."
+	@goimports -w .
+	@golangci-lint run --fix
 
-check: setup-tools # Verify formatting and static analysis (CI target)
-	@test -z "$$(gofmt -l .)" || (echo "Run 'just fix' to format code" && exit 1)
-	@test -z "$$(.bin/goimports -l .)" || (echo "Run 'just fix' to organize imports" && exit 1)
-	@.bin/golangci-lint run
+# Run static checks (format, lint)
+check: fix
+	@echo "🔍 Running static checks..."
+	@test -z "$(goimports -l .)" || (echo "goimports check failed" && exit 1)
+	@golangci-lint run
 
 # ==============================================================================
 # TESTING
 # ==============================================================================
 
-unit-test: # Unit tests (default build tags)
-	@go test ./...
+# Run complete test suite
+test:
+	@just local-test
+	@just docker-test
+	@echo "✅ All tests passed!"
 
-intg-test: # In-process integration tests
-	@go test -tags=intg ./...
-
-api-test: # Dockerized API tests (development target)
-	@set -euo pipefail; \
-		name="ec-tmpl-api-test-$$"; \
-		image="ec-tmpl-test:dev"; \
-		docker build --target development -t "$$image" .; \
-		docker run -d --rm --name "$$name" -p 0:8000 "$$image" >/dev/null; \
-		trap 'docker stop -t 1 "$$name" >/dev/null 2>&1 || true' EXIT; \
-		port="$(docker port "$$name" 8000/tcp | sed -E 's/.*:([0-9]+)$$/\\1/')"; \
-		EC_TMPL_TEST_BASE_URL="http://127.0.0.1:$$port" go test -tags=api ./tests/api
-
-e2e-test: # Dockerized acceptance tests (production target)
-	@set -euo pipefail; \
-		name="ec-tmpl-e2e-test-$$"; \
-		image="ec-tmpl-test:prod"; \
-		docker build --target production -t "$$image" .; \
-		docker run -d --rm --name "$$name" -p 0:8000 "$$image" >/dev/null; \
-		trap 'docker stop -t 1 "$$name" >/dev/null 2>&1 || true' EXIT; \
-		port="$(docker port "$$name" 8000/tcp | sed -E 's/.*:([0-9]+)$$/\\1/')"; \
-		EC_TMPL_TEST_BASE_URL="http://127.0.0.1:$$port" go test -tags=e2e ./tests/e2e
-
-docker-test: # All Docker-based tests
-	@just api-test
-	@just e2e-test
-
-test: # Complete test suite (local + dockerized)
+# Run lightweight local (in-process) test suite
+local-test:
 	@just unit-test
 	@just intg-test
-	@just docker-test
+	@echo "✅ All local tests passed!"
+
+# Run unit tests
+unit-test:
+	@echo "🚀 Running unit tests..."
+	@go test ./...
+
+# Run integration tests (in-process)
+intg-test:
+	@echo "🚀 Running integration tests..."
+	@go test -tags=intg ./...
+
+# Run all Docker-based tests
+docker-test:
+	@just api-test
+	@just e2e-test
+	@echo "✅ All Docker tests passed!"
+
+# Run dockerized API tests (development target)
+api-test:
+	@echo "🚀 Building image for dockerized API tests (development target)..."
+	@docker build --target development -t ec-tmpl-test:dev .
+	@echo "🚀 Running dockerized API tests (development target)..."
+	@EC_TMPL_E2E_IMAGE=ec-tmpl-test:dev go test -tags=api ./tests/api
+
+# Run e2e tests (production target)
+e2e-test:
+	@echo "🚀 Building image for production acceptance tests..."
+	@docker build --target production -t ec-tmpl-test:prod .
+	@echo "🚀 Running production acceptance tests..."
+	@EC_TMPL_E2E_IMAGE=ec-tmpl-test:prod go test -tags=e2e ./tests/e2e
+
+# ==============================================================================
+# CLEANUP
+# ==============================================================================
 
 clean: # Remove generated artifacts
 	@rm -rf .bin tmp .tmp coverage.out

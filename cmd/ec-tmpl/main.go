@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -43,13 +44,13 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Duration(settings.ShutdownGraceSec)*time.Second)
 		defer cancel()
 
-		if err := server.Shutdown(shutdownCtx); err != nil && err != context.Canceled {
+		if err := server.Shutdown(shutdownCtx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Printf("shutdown error: %v", err)
 		}
 	}()
 
 	log.Printf("listening on %s", addr)
-	if err := server.Start(addr); err != nil && err != http.ErrServerClosed {
+	if err := server.Start(addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Printf("server error: %v", err)
 		os.Exit(1)
 	}

@@ -5,8 +5,6 @@ package api_test
 import (
 	"encoding/json"
 	"net/http"
-	"os"
-	"strings"
 	"testing"
 	"time"
 )
@@ -14,7 +12,7 @@ import (
 func TestHealth_API(t *testing.T) {
 	t.Parallel()
 
-	baseURL := testBaseURL(t)
+	baseURL := apiBaseURL(t)
 	waitForHealthy(t, baseURL, 15*time.Second)
 
 	resp := getJSON(t, baseURL+"/health")
@@ -26,23 +24,13 @@ func TestHealth_API(t *testing.T) {
 func TestHello_API(t *testing.T) {
 	t.Parallel()
 
-	baseURL := testBaseURL(t)
+	baseURL := apiBaseURL(t)
 	waitForHealthy(t, baseURL, 15*time.Second)
 
 	resp := getJSON(t, baseURL+"/hello/Alice")
 	if resp["message"] != "Hello, Alice" && resp["message"] != "Hello, Alice (mock)" {
 		t.Fatalf("unexpected payload: %v", resp)
 	}
-}
-
-func testBaseURL(t *testing.T) string {
-	t.Helper()
-
-	baseURL := strings.TrimRight(os.Getenv("EC_TMPL_TEST_BASE_URL"), "/")
-	if baseURL == "" {
-		t.Skip("EC_TMPL_TEST_BASE_URL is not set")
-	}
-	return baseURL
 }
 
 func waitForHealthy(t *testing.T, baseURL string, timeout time.Duration) {
