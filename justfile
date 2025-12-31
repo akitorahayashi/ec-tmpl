@@ -82,32 +82,47 @@ check: fix
 # TESTING
 # ==============================================================================
 
-unit-test: # Unit tests (default build tags)
-	@go test ./...
+# Run complete test suite
+test:
+	@just local-test
+	@just docker-test
+	@echo "✅ All tests passed!"
 
-intg-test: # In-process integration tests
-	@go test -tags=intg ./...
-
-api-test: # Dockerized API tests (development target)
-	@set -euo pipefail; \
-		image="ec-tmpl-test:dev"; \
-		docker build --target development -t "$$image" .; \
-		EC_TMPL_E2E_IMAGE="$$image" go test -tags=api ./tests/api
-
-e2e-test: # Dockerized acceptance tests (production target)
-	@set -euo pipefail; \
-		image="ec-tmpl-test:prod"; \
-		docker build --target production -t "$$image" .; \
-		EC_TMPL_E2E_IMAGE="$$image" go test -tags=e2e ./tests/e2e
-
-docker-test: # All Docker-based tests
-	@just api-test
-	@just e2e-test
-
-test: # Complete test suite (local + dockerized)
+# Run lightweight local (in-process) test suite
+local-test:
 	@just unit-test
 	@just intg-test
-	@just docker-test
+	@echo "✅ All local tests passed!"
+
+# Run unit tests
+unit-test:
+	@echo "🚀 Running unit tests..."
+	@go test ./...
+
+# Run integration tests (in-process)
+intg-test:
+	@echo "🚀 Running integration tests..."
+	@go test -tags=intg ./...
+
+# Run all Docker-based tests
+docker-test:
+	@just api-test
+	@just e2e-test
+	@echo "✅ All Docker tests passed!"
+
+# Run dockerized API tests (development target)
+api-test:
+	@echo "🚀 Building image for dockerized API tests (development target)..."
+	@docker build --target development -t ec-tmpl-test:dev .
+	@echo "🚀 Running dockerized API tests (development target)..."
+	@EC_TMPL_E2E_IMAGE=ec-tmpl-test:dev go test -tags=api ./tests/api
+
+# Run e2e tests (production target)
+e2e-test:
+	@echo "🚀 Building image for production acceptance tests..."
+	@docker build --target production -t ec-tmpl-test:prod .
+	@echo "🚀 Running production acceptance tests..."
+	@EC_TMPL_E2E_IMAGE=ec-tmpl-test:prod go test -tags=e2e ./tests/e2e
 
 # ==============================================================================
 # CLEANUP
