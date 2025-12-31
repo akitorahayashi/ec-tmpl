@@ -3,6 +3,10 @@ package testsupport
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
+	"sync"
+	"testing"
 	"time"
 
 	testcontainers "github.com/testcontainers/testcontainers-go"
@@ -50,12 +54,12 @@ func StartAPIServer(ctx context.Context, opts APIServerOptions) (*RunningAPIServ
 
 	host, err := ctr.Host(ctx)
 	if err != nil {
-		_ = ctr.Terminate(ctx)
+		_ = ctr.Terminate(context.Background())
 		return nil, fmt.Errorf("get container host: %w", err)
 	}
 	port, err := ctr.MappedPort(ctx, apiPort)
 	if err != nil {
-		_ = ctr.Terminate(ctx)
+		_ = ctr.Terminate(context.Background())
 		return nil, fmt.Errorf("get container port: %w", err)
 	}
 
@@ -70,4 +74,55 @@ func (s *RunningAPIServer) Terminate(ctx context.Context) error {
 		return nil
 	}
 	return s.container.Terminate(ctx)
+}
+
+// TestServerManager manages test server lifecycle with sync.Once initialization
+type TestServerManager struct {
+	once   sync.Once
+	server *RunningAPIServer
+	err    error
+	url    string
+}
+
+// GetBaseURL returns the test server URL, starting the container if needed
+func (m *TestServerManager) GetBaseURL(t *testing.T, opts APIServerOptions, logPrefix string) string {
+	t.Helper()
+
+	// Check if base URL is provided via environment variable
+	baseURL := strings.TrimRight(os.Getenv("EC_TMPL_TEST_BASE_URL"), "/")
+	if baseURL != "" {
+		return baseURL
+	}
+
+	// Check for Docker image environment variable
+	image := os.Getenv("EC_TMPL_E2E_IMAGE")
+	if image == "" {
+		t.Skip("EC_TMPL_E2E_IMAGE is not set")
+	}
+
+	// Start server once using sync.Once
+	m.once.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+
+		opts.Image = image
+		m.server, m.err = StartAPIServer(ctx, opts)
+		if m.err == nil {
+			m.url = m.server.BaseURL
+			fmt.Printf("\n%s tests running against: %s\n", logPrefix, m.url)
+		}
+	})
+
+	if m.err != nil {
+		t.Fatalf("failed to start %s container: %v", logPrefix, m.err)
+	}
+	return m.url
+}
+
+// Terminate stops the test server
+func (m *TestServerManager) Terminate(ctx context.Context) error {
+	if m.server != nil {
+		return m.server.Terminate(ctx)
+	}
+	return nil
 }
