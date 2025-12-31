@@ -5,8 +5,6 @@ package e2e_test
 import (
 	"encoding/json"
 	"net/http"
-	"os"
-	"strings"
 	"testing"
 	"time"
 )
@@ -14,23 +12,13 @@ import (
 func TestHealth_E2E(t *testing.T) {
 	t.Parallel()
 
-	baseURL := testBaseURL(t)
+	baseURL := e2eBaseURL(t)
 	waitForHealthy(t, baseURL, 15*time.Second)
 
 	resp := getJSON(t, baseURL+"/health")
 	if resp["status"] != "ok" {
 		t.Fatalf("unexpected payload: %v", resp)
 	}
-}
-
-func testBaseURL(t *testing.T) string {
-	t.Helper()
-
-	baseURL := strings.TrimRight(os.Getenv("EC_TMPL_TEST_BASE_URL"), "/")
-	if baseURL == "" {
-		t.Skip("EC_TMPL_TEST_BASE_URL is not set")
-	}
-	return baseURL
 }
 
 func waitForHealthy(t *testing.T, baseURL string, timeout time.Duration) {

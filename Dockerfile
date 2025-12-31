@@ -3,7 +3,7 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates
 
 FROM base AS development
-RUN go install github.com/air-verse/air@v1.61.5
+RUN go install github.com/air-verse/air@v1.52.3
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
@@ -28,4 +28,3 @@ ENV EC_TMPL_BIND_IP=0.0.0.0
 ENV EC_TMPL_BIND_PORT=8000
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]
-
